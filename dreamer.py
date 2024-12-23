@@ -343,9 +343,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs", nargs="+")
     args, remaining = parser.parse_known_args()
-    configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
-    )
+    configs = yaml.YAML(typ='safe').load(
+        pathlib.Path(sys.argv[0]).parent / "configs.yaml")
 
     def recursive_update(base, update):
         for key, value in update.items():

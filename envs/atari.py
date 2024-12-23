@@ -1,8 +1,11 @@
-import gym
+import gymnasium as gym
+import ale_py
 import numpy as np
 
+gym.register_envs(ale_py)
 
-class Atari:
+
+class Atari(gym.Env):
     LOCK = None
     metadata = {}
 
@@ -38,7 +41,7 @@ class Atari:
             from PIL import Image
 
             self._image = Image
-        import gym.envs.atari
+        #import gym.envs.atari
 
         if name == "james_bond":
             name = "jamesbond"
@@ -51,13 +54,24 @@ class Atari:
         self._length = length
         self._random = np.random.RandomState(seed)
         with self.LOCK:
-            self._env = gym.envs.atari.AtariEnv(
-                game=name,
-                obs_type="image",
-                frameskip=1,
-                repeat_action_probability=0.25 if sticky else 0.0,
-                full_action_space=(actions == "all"),
+            self._env = gym.make(
+                'ALE/{}-v5'.format(name.capitalize()),
+                obs_type='rgb',  # ram | rgb | grayscale
+                frameskip=1,  # frame skip
+                mode=None,  # game mode, see Machado et al. 2018
+                difficulty=None,  # game difficulty, see Machado et al. 2018
+                repeat_action_probability=0.25
+                if sticky else 0.0,  # Sticky action probability
+                full_action_space=actions == "all",  # Use all actions
+                render_mode=None  # None | human | rgb_array
             )
+            #self._env = gym.envs.atari.AtariEnv(
+            #    game=name,
+            #    obs_type="image",
+            #    frameskip=1,
+            #    repeat_action_probability=0.25 if sticky else 0.0,
+            #    full_action_space=(actions == "all"),
+            #)
         assert self._env.unwrapped.get_action_meanings()[0] == "NOOP"
         shape = self._env.observation_space.shape
         self._buffer = [np.zeros(shape, np.uint8) for _ in range(2)]
@@ -69,12 +83,11 @@ class Atari:
 
     @property
     def observation_space(self):
-        img_shape = self._size + ((1,) if self._gray else (3,))
-        return gym.spaces.Dict(
-            {
-                "image": gym.spaces.Box(0, 255, img_shape, np.uint8),
-            }
-        )
+        img_shape = self._size + ((1, ) if self._gray else (3, ))
+        return gym.spaces.Dict({
+            "image":
+            gym.spaces.Box(0, 255, img_shape, np.uint8),
+        })
 
     @property
     def action_space(self):
@@ -94,7 +107,7 @@ class Atari:
         if len(action.shape) >= 1:
             action = np.argmax(action)
         for repeat in range(self._repeat):
-            _, reward, over, info = self._env.step(action)
+            _, reward, over, _, info = self._env.step(action)
             self._step += 1
             total += reward
             if repeat == self._repeat - 2:
@@ -121,7 +134,7 @@ class Atari:
         self._env.reset()
         if self._noops:
             for _ in range(self._random.randint(self._noops)):
-                _, _, dead, _ = self._env.step(0)
+                _, _, dead, _, _ = self._env.step(0)
                 if dead:
                     self._env.reset()
         self._last_lives = self._ale.lives()
@@ -138,9 +151,9 @@ class Atari:
         image = self._buffer[0]
         if image.shape[:2] != self._size:
             if self._resize == "opencv":
-                image = self._cv2.resize(
-                    image, self._size, interpolation=self._cv2.INTER_AREA
-                )
+                image = self._cv2.resize(image,
+                                         self._size,
+                                         interpolation=self._cv2.INTER_AREA)
             if self._resize == "pillow":
                 image = self._image.fromarray(image)
                 image = image.resize(self._size, self._image.NEAREST)
@@ -150,14 +163,18 @@ class Atari:
             image = np.tensordot(image, weights, (-1, 0)).astype(image.dtype)
             image = image[:, :, None]
         return (
-            {"image": image, "is_terminal": is_terminal, "is_first": is_first},
+            {
+                "image": image,
+                "is_terminal": is_terminal,
+                "is_first": is_first
+            },
             reward,
             is_last,
             {},
         )
 
     def _screen(self, array):
-        self._ale.getScreenRGB2(array)
+        self._ale.getScreenRGB(array)
 
     def close(self):
         return self._env.close()

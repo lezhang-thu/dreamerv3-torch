@@ -1,7 +1,8 @@
 import datetime
-import gym
+import gymnasium as gym
 import numpy as np
 import uuid
+from typing import Optional
 
 
 class TimeLimit(gym.Wrapper):
@@ -21,7 +22,7 @@ class TimeLimit(gym.Wrapper):
             self._step = None
         return obs, reward, done, info
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         self._step = 0
         return self.env.reset()
 
